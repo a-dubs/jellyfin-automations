@@ -1,0 +1,8 @@
+.vscode/
+.env
+sessions*
+.venv
+
+# ignore python stuffs
+__pycache__/
+*.pyc
