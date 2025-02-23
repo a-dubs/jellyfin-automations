@@ -143,7 +143,7 @@ class JellyfinPlaybackSnapshot(BaseModel):
     Client: str
     LastActivityDate: str
     LastPlaybackCheckIn: str
-    LastPausedDate: str
+    LastPausedDate: Optional[str] = None
     DeviceName: str
     NowPlayingItem: NowPlayingItem
     CurrentPlaybackTimeStamp: str 
@@ -161,7 +161,7 @@ class JellyfinPlaybackSnapshot(BaseModel):
             Client=data["Client"],
             LastActivityDate=data["LastActivityDate"],
             LastPlaybackCheckIn=data["LastPlaybackCheckIn"],
-            LastPausedDate=data["LastPausedDate"],
+            LastPausedDate=data.get("LastPausedDate"),
             DeviceName=data["DeviceName"],
             NowPlayingItem=NowPlayingItem.from_dict(data["NowPlayingItem"], data["UserId"]),
             CurrentPlaybackTimeStamp=seconds_to_timestamp(ticks_to_seconds(data["PlayState"]["PositionTicks"]))
@@ -227,7 +227,7 @@ def is_match(filter_params: dict, snapshot: dict) -> bool:
     return True
 
 def save_playback_snapshot(
-    filter: SnapshotFilter
+    filter: SnapshotFilter, dry_run: bool = False
 ) -> Optional[JellyfinPlaybackSnapshot]:
     target_field_re_matches = {}
     if filter.device_name:
@@ -255,7 +255,8 @@ def save_playback_snapshot(
                     if "LastPausedDate" in session:
                         print(f"{session['UserName']} is currently paused at {session['NowPlayingItem']['Name']} ({session['NowPlayingItem']['Path']})")
                     snapshot = JellyfinPlaybackSnapshot.from_dict(session)
-                    update_db(snapshot)
+                    if not dry_run:
+                        update_db(snapshot)
                     return snapshot
                 
         else:
