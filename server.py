@@ -1,9 +1,7 @@
-import os
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
-from datetime import datetime
-from playback_snapshotting import save_playback_snapshot, SnapshotFilter
+from playback_snapshotting import save_playback_snapshot
 from logging_setup import get_logger
+from models import SnapshotFilter
 
 app_logger = get_logger('server')
 
