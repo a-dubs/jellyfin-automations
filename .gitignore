@@ -6,3 +6,6 @@ sessions*
 # ignore python stuffs
 __pycache__/
 *.pyc
+
+# ignore logs dir 
+logs/

@@ -8,6 +8,9 @@ from pprint import pprint, pformat
 import json
 import re
 from pydantic import BaseModel, Field
+from logging_setup import get_logger
+
+logger = get_logger('playback_snapshotting')
 
 class SnapshotFilter(BaseModel):
     device_name: str = None
@@ -167,20 +170,18 @@ class JellyfinPlaybackSnapshot(BaseModel):
             CurrentPlaybackTimeStamp=seconds_to_timestamp(ticks_to_seconds(data["PlayState"]["PositionTicks"]))
         )
 
-
-
-
-
-
+# create log directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
 
 # create or read json file to store records in
-
 def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
+    logger.info("Updating database with new snapshot")
     db: list[JellyfinPlaybackSnapshot] = []
     try:
         with open('sessions_db.json', 'r') as f:
             json.load(f)
     except Exception as e:
+        logger.warning(f"Error reading sessions_db.json: {e}")
         with open('sessions_db.json', 'w') as f:
             json.dump([], f)
     try:
@@ -194,9 +195,9 @@ def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
                 f,
                 indent=4
             )
-
-
+        logger.info("Database updated successfully")
     except FileNotFoundError:
+        logger.error("sessions_db.json not found")
         return []
 
 # Load environment variables from .env
@@ -216,19 +217,21 @@ def get_value_from_dot_notation(obj: dict, field: str) -> any:
     return obj
 
 def is_match(filter_params: dict, snapshot: dict) -> bool:
+    logger.debug(f"Checking if snapshot matches filter: {filter_params}")
     snapshot_obj = JellyfinPlaybackSnapshot.from_dict(snapshot)
     for field, value in filter_params.items():
         snapshot_value = get_value_from_dot_notation(snapshot_obj, field)
         if not re.match(value, str(snapshot_value), re.IGNORECASE):
-            print(f"Filter mismatch: {field} ({snapshot_value}) does not match {value}")
+            logger.debug(f"Filter mismatch: {field} ({snapshot_value}) does not match {value}")
             return False
         else:
-            print(f"Filter match: {field} ({snapshot_value}) matches {value}")
+            logger.debug(f"Filter match: {field} ({snapshot_value}) matches {value}")
     return True
 
 def save_playback_snapshot(
     filter: SnapshotFilter, dry_run: bool = False
 ) -> Optional[JellyfinPlaybackSnapshot]:
+    logger.info(f"Saving playback snapshot with filter: {filter} and dry_run: {dry_run}")
     target_field_re_matches = {}
     if filter.device_name:
         target_field_re_matches["DeviceName"] = filter.device_name
@@ -253,20 +256,20 @@ def save_playback_snapshot(
             for session in currently_playing:
                 if is_match(target_field_re_matches, session):
                     if "LastPausedDate" in session:
-                        print(f"{session['UserName']} is currently paused at {session['NowPlayingItem']['Name']} ({session['NowPlayingItem']['Path']})")
+                        logger.info(f"{session['UserName']} is currently paused at {session['NowPlayingItem']['Name']} ({session['NowPlayingItem']['Path']})")
                     snapshot = JellyfinPlaybackSnapshot.from_dict(session)
                     if not dry_run:
                         update_db(snapshot)
                     return snapshot
-                
         else:
-            print("No active playback sessions found.")
+            logger.info("No active playback sessions found.")
     else:
-        print(f"Error: Unable to retrieve sessions (Status Code: {response.status_code})")
+        logger.error(f"Error: Unable to retrieve sessions (Status Code: {response.status_code})")
     return None
 
 # Main execution
 if __name__ == "__main__":
+    logger.info("Starting main execution")
     save_playback_snapshot(
         SnapshotFilter(
             device_name="alec.*macbook|big.*boi.*tv",
