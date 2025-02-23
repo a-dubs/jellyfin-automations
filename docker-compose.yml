@@ -1,0 +1,13 @@
+
+version: '3.8'
+
+services:
+  jellyfin-automations:
+    build: .
+    ports:
+      - "10691:10691"
+    environment:
+      - JELLYFIN_URL=${JELLYFIN_URL}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+    volumes:
+      - .:/app
