@@ -1,4 +1,3 @@
-
 # Use the official Python image from the Docker Hub
 FROM python:3.12-slim
 
@@ -19,3 +18,6 @@ EXPOSE 10691
 
 # Command to run the application
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "10691"]
+
+# Use the host's time zone settings
+RUN ln -sf /usr/share/zoneinfo/$(cat /etc/timezone) /etc/localtime
