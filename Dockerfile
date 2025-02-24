@@ -16,8 +16,8 @@ COPY . .
 # Expose the port the app runs on
 EXPOSE 10691
 
-# Command to run the application
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "10691"]
-
 # Use the host's time zone settings
 RUN ln -sf /usr/share/zoneinfo/$(cat /etc/timezone) /etc/localtime
+
+# Run the python server.py module directly instead of uvicorn cli
+CMD ["python", "server.py"]
