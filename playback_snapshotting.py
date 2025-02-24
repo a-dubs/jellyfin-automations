@@ -54,24 +54,25 @@ logger = get_logger('playback_snapshotting')
             ]
 """
 
+DB_PATH = 'snapshots_db.json'
 
 # create or read json file to store records in
 def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
     logger.info("Updating database with new snapshot")
     db: list[JellyfinPlaybackSnapshot] = []
     try:
-        with open('sessions_db.json', 'r') as f:
+        with open(DB_PATH, 'r') as f:
             json.load(f)
     except Exception as e:
-        logger.warning(f"Error reading sessions_db.json: {e}")
-        with open('sessions_db.json', 'w') as f:
+        logger.warning(f"Error reading {DB_PATH}: {e}")
+        with open(DB_PATH, 'w') as f:
             json.dump([], f)
     try:
-        with open('sessions_db.json', 'r') as f:
+        with open(DB_PATH, 'r') as f:
             data: list = json.load(f)
             db = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
         db.append(new_snapshot)
-        with open('sessions_db.json', 'w') as f:
+        with open(DB_PATH, 'w') as f:
             json.dump(
                 [s.model_dump() for s in db],
                 f,
@@ -79,7 +80,7 @@ def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
             )
         logger.info("Database updated successfully")
     except FileNotFoundError:
-        logger.error("sessions_db.json not found")
+        logger.error(f"{DB_PATH} not found")
         return []
 
 # Load environment variables from .env

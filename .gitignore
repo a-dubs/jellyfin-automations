@@ -1,6 +1,7 @@
 .vscode/
 .env
 sessions*
+snapshots_db.json
 .venv
 
 # ignore python stuffs
