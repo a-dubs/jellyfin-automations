@@ -57,10 +57,19 @@ logger = get_logger('playback_snapshotting')
 
 DB_PATH = 'snapshots_db.json'
 
+def filter_out_duplicate_snapshots(snapshots: list[JellyfinPlaybackSnapshot]) -> list[JellyfinPlaybackSnapshot]:
+    logger.info("Filtering out duplicate snapshots")
+    filtered_snapshots = []
+    for snapshot in snapshots:
+        if snapshot not in filtered_snapshots:
+            filtered_snapshots.append(snapshot)
+    return filtered_snapshots
+
 # create or read json file to store records in
 def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
     logger.info("Updating database with new snapshot")
     db: list[JellyfinPlaybackSnapshot] = []
+    # create db file if it doesn't exist
     try:
         with open(DB_PATH, 'r') as f:
             json.load(f)
@@ -68,10 +77,12 @@ def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
         logger.warning(f"Error reading {DB_PATH}: {e}")
         with open(DB_PATH, 'w') as f:
             json.dump([], f)
+    # read in db file
     try:
         with open(DB_PATH, 'r') as f:
             data: list = json.load(f)
             db = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
+            db = filter_out_duplicate_snapshots(db)
         db.append(new_snapshot)
         with open(DB_PATH, 'w') as f:
             json.dump(

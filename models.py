@@ -121,6 +121,28 @@ class JellyfinPlaybackSnapshot(BaseModel):
             CurrentPlaybackTimeStamp=seconds_to_timestamp(ticks_to_seconds(data["PlayState"]["PositionTicks"]))
         )
 
+    def __eq__(self, value):
+        """
+        Override the default Equals behavior
+
+        If the value is a JellyfinPlaybackSnapshot, compare the following:
+        - CurrentPlaybackTimeStamp
+        - NowPlayingItem.Id
+        - DeviceName
+        - UserName
+        """
+
+        if not isinstance(value, JellyfinPlaybackSnapshot):
+            return False
+
+        return (
+            self.CurrentPlaybackTimeStamp == value.CurrentPlaybackTimeStamp
+            and self.NowPlayingItem.Id == value.NowPlayingItem.Id
+            and self.DeviceName == value.DeviceName
+            and self.UserName == value.UserName
+        )
+        
+
 class Item(BaseModel):
     type: str = "Unknown"
     name: str
