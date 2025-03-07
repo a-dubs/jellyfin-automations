@@ -96,7 +96,7 @@
         }
 
         async function takeSnapshot(deviceName, userName) {
-            const response = await fetch('/save-playback-snapshot/?dry_run=true', {
+            const response = await fetch('/save-playback-snapshot/?dry_run=false', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -105,6 +105,8 @@
             });
             const result = await response.json();
             showModal(result.message);
+            // refresh data now that we have a new snapshot
+            refreshData();
         }
 
         async function loadSnapshots() {
