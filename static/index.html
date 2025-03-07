@@ -17,7 +17,17 @@
 <body>
     <section class="section">
         <div class="container">
-            <button class="button is-primary" onclick="loadSessions()">Refresh</button>
+            <div class="columns is-mobile is-centered">
+                <div class="column is-narrow">
+                    <button 
+                        class="button is-primary m-4"
+                        onclick="loadSessions()"
+                    >
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <h1 class="title">Playback Sessions</h1>
             <div id="sessions" class="columns is-multiline"></div>
         </div>
     </section>
