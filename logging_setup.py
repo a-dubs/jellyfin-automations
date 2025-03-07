@@ -24,6 +24,10 @@ log_formatter = LocalTimeFormatter('%(asctime)s - %(name)s - %(levelname)s - %(m
 log_handler = RotatingFileHandler('logs/jellyfin-automations.log', maxBytes=1000000, backupCount=5)
 log_handler.setFormatter(log_formatter)
 log_handler.setLevel(logging.DEBUG)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.DEBUG)
+
 
 # Function to get logger
 def get_logger(name: str) -> logging.Logger:
@@ -31,4 +35,5 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     if not logger.hasHandlers():  # Prevent adding multiple handlers
         logger.addHandler(log_handler)
+        logger.addHandler(console_handler)
     return logger

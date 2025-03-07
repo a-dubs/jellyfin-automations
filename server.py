@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException, Query
-from playback_snapshotting import save_playback_snapshot
+from playback_snapshotting import save_playback_snapshot, get_playback_session_summaries, read_in_snapshots_from_db_as_summaries
 from logging_setup import get_logger
-from models import SnapshotFilter
+from models import SnapshotFilter, PlaybackSessionSummary
+from fastapi.staticfiles import StaticFiles
 
 app_logger = get_logger('server')
 
@@ -18,7 +19,7 @@ def save_playback_snapshot_endpoint(filter: SnapshotFilter, dry_run: bool = Quer
     try:
         snapshot = save_playback_snapshot(filter, dry_run)
         if snapshot:
-            message = f"Snapshot {'retrieved' if dry_run else 'saved'} at {snapshot.CurrentPlaybackTimeStamp}"
+            message = f"Snapshot {'retrieved' if dry_run else 'saved'} for '{snapshot.NowPlayingItem.Name}' at {snapshot.CurrentPlaybackTimeStamp}"
             app_logger.info(message)
             return {"message": message}
         else:
@@ -29,6 +30,32 @@ def save_playback_snapshot_endpoint(filter: SnapshotFilter, dry_run: bool = Quer
             raise e
         app_logger.error(f"Unexpected error in save_playback_snapshot_endpoint: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/playback-sessions/")
+def playback_sessions() -> list[PlaybackSessionSummary]:
+    app_logger.info("Playback sessions endpoint called")
+    try:
+        return get_playback_session_summaries()
+    except Exception as e:
+        app_logger.error(f"Unexpected error in playback_sessions: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/snapshots/")
+def get_snapshots():
+    app_logger.info("Snapshots endpoint called")
+    try:
+        return read_in_snapshots_from_db_as_summaries()
+    except Exception as e:
+        app_logger.error(f"Unexpected error in get_snapshots: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+app.mount("/frontend", StaticFiles(directory="static"), name="frontend")
+
+from fastapi.responses import FileResponse
+
+@app.get("/")
+def read_root():
+    return FileResponse("static/index.html")
 
 if __name__ == "__main__":
     import uvicorn

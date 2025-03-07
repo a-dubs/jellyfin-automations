@@ -1,4 +1,5 @@
 import datetime
+from pprint import pprint
 from typing import Optional
 import requests
 import os
@@ -6,7 +7,7 @@ from dotenv import load_dotenv
 import json
 import re
 from logging_setup import get_logger
-from models import SnapshotFilter, VideoStreamInfo, PlayState, NowPlayingItem, JellyfinPlaybackSnapshot
+from models import SnapshotFilter, SnapshotSummary, VideoStreamInfo, PlayState, NowPlayingItem, JellyfinPlaybackSnapshot
 
 logger = get_logger('playback_snapshotting')
 
@@ -111,6 +112,62 @@ def is_match(filter_params: dict, snapshot: dict) -> bool:
             logger.debug(f"Filter match: {field} ({snapshot_value}) matches {value}")
     return True
 
+def fetch_sessions() -> list[dict]:
+    endpoint = f"{JELLYFIN_URL}/Sessions"
+    headers = {"X-MediaBrowser-Token": JELLYFIN_API_KEY}
+    params = {
+        "ActiveWithinSeconds": 90,   # Adjust as needed
+    }
+
+    response = requests.get(endpoint, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logger.error(f"Error: Unable to retrieve sessions (Status Code: {response.status_code})")
+        return []
+
+from models import PlaybackSessionSummary
+
+def get_playback_session_summaries() -> list[PlaybackSessionSummary]:
+    sessions = fetch_sessions()
+    summaries = []
+    for session in sessions:
+        if not "NowPlayingItem" in session:
+            continue
+        try:
+            summary = PlaybackSessionSummary.from_dict(session)
+        except Exception as e:
+            logger.debug(f"session data: {session}")
+            logger.warning(f"Error creating PlaybackSessionSummary: {e}")
+            continue
+        summaries.append(summary)
+    return summaries
+
+
+def read_in_snapshots_from_db_as_summaries() -> list[SnapshotSummary]:
+    logger.info("Reading in snapshots from database")
+    try:
+        with open(DB_PATH, 'r') as f:
+            data = json.load(f)
+            snapshots = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
+    except FileNotFoundError:
+        logger.error(f"{DB_PATH} not found")
+        return []
+    except Exception as e:
+        logger.error(f"Error reading {DB_PATH}: {e}")
+        return []
+    
+    summaries = []
+    for snapshot in snapshots:
+        try:
+            summaries.append(SnapshotSummary.from_snapshot(snapshot))
+        except Exception as e:
+            logger.warning(f"Error creating SnapshotSummary: {e}")
+            continue
+
+    return summaries
+
+
 def save_playback_snapshot(
     filter: SnapshotFilter, dry_run: bool = False
 ) -> Optional[JellyfinPlaybackSnapshot]:
@@ -123,40 +180,34 @@ def save_playback_snapshot(
     if filter.is_paused:
         target_field_re_matches["PlayState.IsPaused"] = filter.is_paused
 
-    endpoint = f"{JELLYFIN_URL}/Sessions"
-    headers = {"X-MediaBrowser-Token": JELLYFIN_API_KEY}
-    params = {
-        "ActiveWithinSeconds": 90,   # Adjust as needed
-    }
+    sessions = fetch_sessions()
 
-    response = requests.get(endpoint, headers=headers, params=params)
-    if response.status_code == 200:
-        sessions = response.json()
-        currently_playing = [s for s in sessions if "NowPlayingItem" in s]
-        with open('sessions.json', 'w') as f:
-            json.dump(sessions, f)
-        if currently_playing:
-            for session in currently_playing:
-                if is_match(target_field_re_matches, session):
-                    if "LastPausedDate" in session:
-                        logger.info(f"{session['UserName']} is currently paused at {session['NowPlayingItem']['Name']} ({session['NowPlayingItem']['Path']})")
-                    snapshot = JellyfinPlaybackSnapshot.from_dict(session)
-                    if not dry_run:
-                        update_db(snapshot)
-                    return snapshot
-        else:
-            logger.info("No active playback sessions found.")
+    currently_playing = [s for s in sessions if "NowPlayingItem" in s]
+    with open('sessions.json', 'w') as f:
+        json.dump(sessions, f)
+    if currently_playing:
+        for session in currently_playing:
+            if is_match(target_field_re_matches, session):
+                if "LastPausedDate" in session:
+                    logger.info(f"{session['UserName']} is currently paused at {session['NowPlayingItem']['Name']} ({session['NowPlayingItem']['Path']})")
+                snapshot = JellyfinPlaybackSnapshot.from_dict(session)
+                if not dry_run:
+                    update_db(snapshot)
+                return snapshot
     else:
-        logger.error(f"Error: Unable to retrieve sessions (Status Code: {response.status_code})")
+        logger.info("No active playback sessions found.")
     return None
 
 # Main execution
 if __name__ == "__main__":
     logger.info("Starting main execution")
-    save_playback_snapshot(
-        SnapshotFilter(
-            device_name="alec.*macbook|big.*boi.*tv",
-            user_name="big bois|alec",
-            is_paused="true",
-        ),
-    )
+    # save_playback_snapshot(
+    #     SnapshotFilter(
+    #         device_name="alec.*macbook|big.*boi.*tv",
+    #         user_name="big bois|alec",
+    #         is_paused="true",
+    #     ),
+    # )
+    r = read_in_snapshots_from_db_as_summaries()
+    for s in r:
+        pprint(s.model_dump())

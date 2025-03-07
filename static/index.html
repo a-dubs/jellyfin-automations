@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playback Sessions</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <style>
+        .tile {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <button class="button is-primary" onclick="loadSessions()">Refresh</button>
+            <div id="sessions" class="columns is-multiline"></div>
+        </div>
+    </section>
+
+    <!-- Modal -->
+    <div id="resultModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Snapshot Result</p>
+                <button class="delete" aria-label="close" onclick="closeModal()"></button>
+            </header>
+            <section class="modal-card-body" id="modalMessage">
+                <!-- Result message will be inserted here -->
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" onclick="closeModal()">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="title">Snapshots</h2>
+            <div id="snapshots" class="content"></div>
+        </div>
+    </section>
+
+    <script>
+        async function loadSessions() {
+            const response = await fetch('/playback-sessions/');
+            const sessions = await response.json();
+            const sessionsDiv = document.getElementById('sessions');
+            sessionsDiv.innerHTML = '';
+            sessions.forEach(session => {
+                const tile = document.createElement('div');
+                tile.className = 'column is-one-third';
+                let itemDetails = '';
+                if (session.playing_item.type === 'Show') {
+                    itemDetails = `
+                        <p><strong>Series:</strong> ${session.playing_item.series_name}</p>
+                        <p><strong>Season:</strong> ${session.playing_item.season_name}</p>
+                        <p><strong>Episode:</strong> ${session.playing_item.name}</p>
+                    `;
+                }
+                if (session.playing_item.type === 'Movie') {
+                    itemDetails = `
+                        <p><strong>Name:</strong> ${session.playing_item.name}</p>
+                    `;
+                }
+                tile.innerHTML = `
+                    <div class="card">
+                        <div class="card-content">
+                            <p class="subtitle">User ${session.user_name} on ${session.device_name}</p>
+                            ${itemDetails}
+                            <p><strong>Paused:</strong> ${session.is_paused}</p>
+                            <p><strong>Timestamp:</strong> ${session.playback_timestamp}</p>
+                        </div>
+                        <footer class="card-footer">
+                            <button class="button is-link card-footer-item" onclick="takeSnapshot('${session.device_name}', '${session.user_name}')">Take Snapshot</button>
+                        </footer>
+                    </div>
+                `;
+                sessionsDiv.appendChild(tile);
+            });
+        }
+
+        async function takeSnapshot(deviceName, userName) {
+            const response = await fetch('/save-playback-snapshot/?dry_run=true', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_name: deviceName, user_name: userName })
+            });
+            const result = await response.json();
+            showModal(result.message);
+        }
+
+        async function loadSnapshots() {
+            const response = await fetch('/snapshots/');
+            const snapshots = await response.json();
+            // sort snapshots by datetime_recorded (newest first)
+            snapshots.sort((a, b) => new Date(b.datetime_recorded) - new Date(a.datetime_recorded));
+            const snapshotsDiv = document.getElementById('snapshots');
+            snapshotsDiv.innerHTML = '';
+            snapshots.forEach(snapshot => {
+            const snapshotElement = document.createElement('div');
+            snapshotElement.className = 'box';
+            const recordedAt = new Date(snapshot.datetime_recorded).toLocaleString();
+            snapshotElement.innerHTML = `
+                <p><strong>Title:</strong> ${snapshot.title}</p>
+                <p><strong>Playback Timestamp:</strong> ${snapshot.playback_timestamp}</p>
+                <p><strong>Recorded At:</strong> ${recordedAt}</p>
+            `;
+            snapshotsDiv.appendChild(snapshotElement);
+            });
+        }
+
+        function showModal(message) {
+            document.getElementById('modalMessage').innerText = message;
+            document.getElementById('resultModal').classList.add('is-active');
+        }
+
+        function closeModal() {
+            document.getElementById('resultModal').classList.remove('is-active');
+        }
+
+        window.onload = function() {
+            loadSessions();
+            loadSnapshots();
+        };
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import datetime
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 
 
 class SnapshotFilter(BaseModel):
@@ -44,10 +44,10 @@ class NowPlayingItem(BaseModel):
     Id: str
     ProviderIds: dict[str, str]
     VideoStreamInfo: VideoStreamInfo
-    SeriesName: str
-    SeasonName: str
-    SeriesId: str
-    SeasonId: str
+    SeriesName: Optional[str] = None
+    SeasonName: Optional[str] = None
+    SeriesId: Optional[str] = None
+    SeasonId: Optional[str] = None
     RunTimeTicks: int
     Path: str
 
@@ -119,4 +119,97 @@ class JellyfinPlaybackSnapshot(BaseModel):
             DeviceName=data["DeviceName"],
             NowPlayingItem=NowPlayingItem.from_dict(data["NowPlayingItem"], data["UserId"]),
             CurrentPlaybackTimeStamp=seconds_to_timestamp(ticks_to_seconds(data["PlayState"]["PositionTicks"]))
+        )
+
+class Item(BaseModel):
+    type: str = "Unknown"
+    name: str
+    imdb_id: Optional[str]
+
+    @property
+    def title(self) -> str:
+        return self.name
+
+class ShowItem(Item):
+    type: str = "Show"
+    series_name: str
+    season_name: str
+    episode_number: int
+
+    @property
+    def title(self) -> str:
+        return f"{self.series_name} - {self.season_name} - {self.episode_number} - {self.name}"
+
+class MovieItem(Item):
+    type: str = "Movie"
+
+def item_from_playback_session(data: dict) -> Optional[ShowItem | MovieItem]:
+    if "NowPlayingItem" not in data:
+        return None
+    if _is_tv_show(data):
+        return ShowItem(
+            name=data["NowPlayingItem"]["Name"],
+            imdb_id=data["NowPlayingItem"]["ProviderIds"].get("Imdb"),
+            series_name=data["NowPlayingItem"]["SeriesName"],
+            season_name=data["NowPlayingItem"]["SeasonName"],
+            episode_number=data["NowPlayingItem"]["IndexNumber"],
+        )
+    else:
+        return MovieItem(
+            name=data["NowPlayingItem"]["Name"],
+            imdb_id=data["NowPlayingItem"]["ProviderIds"].get("Imdb"),
+        )
+
+def _is_tv_show(data: dict) -> bool:
+    return data.get("NowPlayingItem", {}).get("SeasonName") is not None
+
+# def _generate_media_title(data: dict) -> str:
+#     if _is_tv_show(data):
+#         show_name = data["NowPlayingItem"]["SeriesName"]
+#         season_name = data["NowPlayingItem"]["SeasonName"]
+#         episode_number = data["NowPlayingItem"]["IndexNumber"]
+#         episode_name = data["NowPlayingItem"]["Name"]
+#         return f"{show_name} - {season_name} - {episode_number} - {episode_name}"
+#     else:
+#         return data["NowPlayingItem"]["Name"]
+
+# model representing active playback session summary
+class PlaybackSessionSummary(BaseModel):
+    device_name: str
+    user_name: str
+    is_paused: bool
+    playing_item: ShowItem | MovieItem
+    playback_timestamp: str
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            device_name=data["DeviceName"],
+            user_name=data["UserName"],
+            is_paused=data["PlayState"]["IsPaused"],
+            playing_item=item_from_playback_session(data),
+            playback_timestamp=seconds_to_timestamp(
+                ticks_to_seconds(
+                    data["PlayState"]["PositionTicks"],
+                ),
+            ),
+        )
+
+
+class SnapshotSummary(BaseModel):
+    datetime_recorded: str
+    playback_timestamp: str
+    title: str
+
+    @classmethod
+    def from_snapshot(cls, snapshot: JellyfinPlaybackSnapshot):
+        title = (
+            f"{snapshot.NowPlayingItem.SeriesName} - "
+            f"{snapshot.NowPlayingItem.SeasonName} - "
+            f"{snapshot.NowPlayingItem.Name}"
+        )
+        return cls(
+            datetime_recorded=snapshot.LastActivityDate,
+            playback_timestamp=snapshot.CurrentPlaybackTimeStamp,
+            title=title,
         )
