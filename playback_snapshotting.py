@@ -65,35 +65,41 @@ def filter_out_duplicate_snapshots(snapshots: list[JellyfinPlaybackSnapshot]) ->
             filtered_snapshots.append(snapshot)
     return filtered_snapshots
 
-# create or read json file to store records in
-def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
-    logger.info("Updating database with new snapshot")
-    db: list[JellyfinPlaybackSnapshot] = []
+def load_db() -> list[JellyfinPlaybackSnapshot]:
+    logger.info("Loading database")
     # create db file if it doesn't exist
     try:
         with open(DB_PATH, 'r') as f:
             json.load(f)
     except Exception as e:
         logger.warning(f"Error reading {DB_PATH}: {e}")
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        logger.info(f"Creating db at {DB_PATH}")
         with open(DB_PATH, 'w') as f:
             json.dump([], f)
     # read in db file
     try:
         with open(DB_PATH, 'r') as f:
-            data: list = json.load(f)
-            db = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
-            db = filter_out_duplicate_snapshots(db)
-        db.append(new_snapshot)
-        with open(DB_PATH, 'w') as f:
-            json.dump(
-                [s.model_dump() for s in db],
-                f,
-                indent=4
-            )
-        logger.info("Database updated successfully")
-    except FileNotFoundError:
-        logger.error(f"{DB_PATH} not found")
+            data = json.load(f)
+            snapshots = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
+            return filter_out_duplicate_snapshots(snapshots)
+    except Exception as e:
+        logger.error(f"Error reading {DB_PATH}: {e}")
         return []
+
+# create or read json file to store records in
+def update_db(new_snapshot: JellyfinPlaybackSnapshot) -> None:
+    logger.info("Updating database with new snapshot")
+    db = load_db()
+    db.append(new_snapshot)
+    with open(DB_PATH, 'w') as f:
+        json.dump(
+            [s.model_dump() for s in db],
+            f,
+            indent=4
+        )
+    logger.info("Database updated successfully")
+
 
 # Load environment variables from .env
 load_dotenv()
@@ -157,16 +163,7 @@ def get_playback_session_summaries() -> list[PlaybackSessionSummary]:
 
 def read_in_snapshots_from_db_as_summaries() -> list[SnapshotSummary]:
     logger.info("Reading in snapshots from database")
-    try:
-        with open(DB_PATH, 'r') as f:
-            data = json.load(f)
-            snapshots = [JellyfinPlaybackSnapshot.from_dict(d) for d in data]
-    except FileNotFoundError:
-        logger.error(f"{DB_PATH} not found")
-        return []
-    except Exception as e:
-        logger.error(f"Error reading {DB_PATH}: {e}")
-        return []
+    snapshots = load_db()
     
     summaries = []
     for snapshot in snapshots:
@@ -194,7 +191,7 @@ def save_playback_snapshot(
     sessions = fetch_sessions()
 
     currently_playing = [s for s in sessions if "NowPlayingItem" in s]
-    with open('sessions.json', 'w') as f:
+    with open('example_sessions_data.json', 'w') as f:
         json.dump(sessions, f)
     if currently_playing:
         for session in currently_playing:

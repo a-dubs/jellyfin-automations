@@ -1,6 +1,6 @@
 .vscode/
 .env
-sessions*
+example_sessions.json
 snapshots_db.json
 .venv
 
